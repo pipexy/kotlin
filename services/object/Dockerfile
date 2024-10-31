@@ -25,14 +25,6 @@ RUN mkdir -p /var/log/pipexy
 RUN mkdir -p /certs
 RUN mkdir -p /models
 
-# Copy certificates
-COPY certs/object.pem /certs/
-COPY certs/ca.crt /certs/
-
-# Set proper permissions for certificates
-RUN chmod 600 /certs/object.pem \
-    && chmod 644 /certs/ca.crt
-
 # Environment variables for GPU support
 ENV NVIDIA_VISIBLE_DEVICES all
 ENV NVIDIA_DRIVER_CAPABILITIES compute,utility

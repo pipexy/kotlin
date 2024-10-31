@@ -1,0 +1,10 @@
+grpcio==1.54.2
+grpcio-tools==1.54.2
+protobuf==4.23.2
+prometheus-client==0.17.0
+python-dotenv==1.0.0
+pyyaml==6.0
+numpy==1.24.3
+opencv-python-headless==4.7.0.72
+scikit-learn==1.2.2  # For motion tracking algorithms
+filterpy==1.4.5      # For Kalman filtering

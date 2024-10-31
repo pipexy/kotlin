@@ -6,9 +6,8 @@ services:
     ports:
       - "50051:50051"
     volumes:
-      - ./config:/config
-      - ./certs/router.pem:/certs/router.pem:ro
-      - ./certs/ca.crt:/certs/ca.crt:ro
+      - ./config:/config:ro
+      - ./certs:/certs:ro
     env_file: .env
     networks:
       - pipexy-net
@@ -17,11 +16,14 @@ services:
     image: envoyproxy/envoy:v1.22.0
     ports:
       - "8080:8080"
+      - "9901:9901"
     volumes:
       - ./config/envoy.yaml:/etc/envoy/envoy.yaml:ro
       - ./certs:/certs:ro
     networks:
       - pipexy-net
+    depends_on:
+      - router
 
   decoder:
     build: 
@@ -30,13 +32,14 @@ services:
     ports:
       - "${DECODER_PORT}:${DECODER_PORT}"
     volumes:
-      - ./models:/models
-      - ./config:/config
-      - ./certs/decoder.pem:/certs/decoder.pem:ro
-      - ./certs/ca.crt:/certs/ca.crt:ro
+      - ./models:/models:ro
+      - ./config:/config:ro
+      - ./certs:/certs:ro
     env_file: .env
     networks:
       - pipexy-net
+    depends_on:
+      - router
 
   encoder:
     build:
@@ -45,12 +48,13 @@ services:
     ports:
       - "${ENCODER_PORT}:${ENCODER_PORT}"
     volumes:
-      - ./config:/config
-      - ./certs/encoder.pem:/certs/encoder.pem:ro
-      - ./certs/ca.crt:/certs/ca.crt:ro
+      - ./config:/config:ro
+      - ./certs:/certs:ro
     env_file: .env
     networks:
       - pipexy-net
+    depends_on:
+      - router
 
   scaler:
     build:
@@ -59,12 +63,13 @@ services:
     ports:
       - "${SCALER_PORT}:${SCALER_PORT}"
     volumes:
-      - ./config:/config
-      - ./certs/scaler.pem:/certs/scaler.pem:ro
-      - ./certs/ca.crt:/certs/ca.crt:ro
+      - ./config:/config:ro
+      - ./certs:/certs:ro
     env_file: .env
     networks:
       - pipexy-net
+    depends_on:
+      - router
 
   motion:
     build:
@@ -73,13 +78,14 @@ services:
     ports:
       - "${MOTION_PORT}:${MOTION_PORT}"
     volumes:
-      - ./models:/models
-      - ./config:/config
-      - ./certs/motion.pem:/certs/motion.pem:ro
-      - ./certs/ca.crt:/certs/ca.crt:ro
+      - ./models:/models:ro
+      - ./config:/config:ro
+      - ./certs:/certs:ro
     env_file: .env
     networks:
       - pipexy-net
+    depends_on:
+      - router
 
   object:
     build:
@@ -88,10 +94,9 @@ services:
     ports:
       - "${OBJECT_PORT}:${OBJECT_PORT}"
     volumes:
-      - ./models:/models
-      - ./config:/config
-      - ./certs/object.pem:/certs/object.pem:ro
-      - ./certs/ca.crt:/certs/ca.crt:ro
+      - ./models:/models:ro
+      - ./config:/config:ro
+      - ./certs:/certs:ro
     env_file: .env
     deploy:
       resources:
@@ -102,6 +107,8 @@ services:
               capabilities: [gpu]
     networks:
       - pipexy-net
+    depends_on:
+      - router
 
   audio:
     build:
@@ -110,20 +117,21 @@ services:
     ports:
       - "${AUDIO_PORT}:${AUDIO_PORT}"
     volumes:
-      - ./models:/models
-      - ./config:/config
-      - ./certs/audio.pem:/certs/audio.pem:ro
-      - ./certs/ca.crt:/certs/ca.crt:ro
+      - ./models:/models:ro
+      - ./config:/config:ro
+      - ./certs:/certs:ro
     env_file: .env
     networks:
       - pipexy-net
+    depends_on:
+      - router
 
   prometheus:
     image: prom/prometheus:latest
     ports:
       - "${PROMETHEUS_PORT}:${PROMETHEUS_PORT}"
     volumes:
-      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - prometheus_data:/prometheus
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
@@ -138,7 +146,7 @@ services:
     ports:
       - "${GRAFANA_PORT}:${GRAFANA_PORT}"
     volumes:
-      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
       - grafana_data:/var/lib/grafana
     depends_on:
       - prometheus

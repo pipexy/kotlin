@@ -18,14 +18,7 @@ COPY src/ .
 # Create necessary directories
 RUN mkdir -p /var/log/pipexy
 RUN mkdir -p /certs
-
-# Copy certificates
-COPY certs/scaler.pem /certs/
-COPY certs/ca.crt /certs/
-
-# Set proper permissions for certificates
-RUN chmod 600 /certs/scaler.pem \
-    && chmod 644 /certs/ca.crt
+RUN mkdir -p /models
 
 EXPOSE ${SCALER_PORT}
 

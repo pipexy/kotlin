@@ -10,8 +10,11 @@ cd "$CERT_DIR"
 
 # Generate root CA
 echo "Generating root CA..."
-openssl genrsa -out ca.key 4096
-openssl req -new -x509 -days 365 -key ca.key -out ca.crt -subj "/CN=PipeXY-CA"
+openssl req -x509 -newkey rsa:4096 -nodes \
+    -keyout ca.key \
+    -out ca.crt \
+    -days 365 \
+    -subj "/CN=PipeXY-CA"
 
 # Function to generate service certificate
 generate_service_cert() {
@@ -62,15 +65,11 @@ EOF
 }
 
 # Generate certificates for all services
-services=("decoder" "encoder" "scaler" "motion" "object" "audio")
+services=("router" "decoder" "encoder" "scaler" "motion" "object" "audio" "grpc-web-proxy")
 
 for service in "${services[@]}"; do
     generate_service_cert "$service"
 done
-
-# Generate client certificate
-echo "Generating client certificate..."
-generate_service_cert "client"
 
 echo "Certificates generated successfully in $CERT_DIR"
 echo "Root CA certificate: $CERT_DIR/ca.crt"
@@ -79,9 +78,11 @@ echo "Service certificates are in individual .pem files"
 # Create symbolic links in service directories
 cd ..
 for service in "${services[@]}"; do
-    mkdir -p "../services/${service}/certs"
-    ln -sf "../../../${CERT_DIR}/${service}.pem" "../services/${service}/certs/"
-    ln -sf "../../../${CERT_DIR}/ca.crt" "../services/${service}/certs/"
+    if [ "$service" != "grpc-web-proxy" ]; then
+        mkdir -p "../services/${service}/certs"
+        ln -sf "../../../${CERT_DIR}/${service}.pem" "../services/${service}/certs/"
+        ln -sf "../../../${CERT_DIR}/ca.crt" "../services/${service}/certs/"
+    fi
 done
 
 echo "Certificate symbolic links created in service directories"

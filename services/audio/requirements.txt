@@ -1,0 +1,13 @@
+grpcio==1.54.2
+grpcio-tools==1.54.2
+protobuf==4.23.2
+prometheus-client==0.17.0
+python-dotenv==1.0.0
+pyyaml==6.0
+numpy==1.24.3
+scipy==1.10.1        # For audio processing
+librosa==0.10.0.post2 # Advanced audio processing
+sounddevice==0.4.6   # Audio I/O
+pyaudio==0.2.13      # Audio I/O
+torch==2.0.1         # For audio ML models
+torchaudio==2.0.2    # Audio processing with PyTorch

@@ -4,10 +4,6 @@ WORKDIR /app
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y \
-    libopencv-dev \
-    libatlas-base-dev \
-    libhdf5-dev \
-    libhdf5-serial-dev \
     pkg-config \
     && rm -rf /var/lib/apt/lists/*
 
@@ -21,8 +17,7 @@ COPY src/ .
 # Create necessary directories
 RUN mkdir -p /var/log/pipexy
 RUN mkdir -p /certs
-RUN mkdir -p /models
 
-EXPOSE ${MOTION_PORT}
+EXPOSE 50051
 
 CMD ["python", "main.py"]
