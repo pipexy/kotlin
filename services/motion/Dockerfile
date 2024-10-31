@@ -18,11 +18,18 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy service code
 COPY src/ .
 
-# Create log directory
+# Create necessary directories
 RUN mkdir -p /var/log/pipexy
-
-# Create models directory
+RUN mkdir -p /certs
 RUN mkdir -p /models
+
+# Copy certificates
+COPY certs/motion.pem /certs/
+COPY certs/ca.crt /certs/
+
+# Set proper permissions for certificates
+RUN chmod 600 /certs/motion.pem \
+    && chmod 644 /certs/ca.crt
 
 EXPOSE ${MOTION_PORT}
 

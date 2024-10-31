@@ -2,6 +2,387 @@
 kotlin implementation on kubernetes
 
 
+# Protocol Router Project Documentation
+
+## 1. Project Structure
+
+```
+/protocol-router
+├── src/
+│   ├── main/
+│   │   ├── kotlin/
+│   │   │   ├── com/example/router/
+│   │   │   │   ├── protocols/
+│   │   │   │   │   ├── FileProtocolHandler.kt
+│   │   │   │   │   ├── KafkaProtocolHandler.kt
+│   │   │   │   │   ├── RtspHandler.kt
+│   │   │   │   │   ├── WebRTCHandler.kt
+│   │   │   │   │   ├── GrpcHandler.kt
+│   │   │   │   │   └── WssHandler.kt
+│   │   │   │   ├── core/
+│   │   │   │   │   ├── Router.kt
+│   │   │   │   │   ├── ProtocolRegistry.kt
+│   │   │   │   │   └── RouteDefinition.kt
+│   │   │   │   └── config/
+│   │   │   │       ├── AppConfig.kt
+│   │   │   │       └── SecurityConfig.kt
+│   │   └── resources/
+│   │       ├── application.yaml
+│   │       └── logback.xml
+│   └── test/
+│       └── kotlin/
+│           └── com/example/router/
+│               ├── protocols/
+│               │   └── *Test.kt
+│               └── core/
+│                   └── *Test.kt
+├── config/
+│   ├── nginx/
+│   │   └── nginx.conf
+│   ├── envoy/
+│   │   └── envoy.yaml
+│   ├── coturn/
+│   │   └── turnserver.conf
+│   ├── prometheus/
+│   │   └── prometheus.yml
+│   └── grafana/
+│       └── dashboards/
+├── docker/
+│   ├── Dockerfile
+│   ├── Dockerfile.test
+│   └── docker-compose.yml
+├── scripts/
+│   ├── setup.sh
+│   ├── generate-certs.sh
+│   └── test/
+│       ├── run-tests.sh
+│       └── performance-test.sh
+└── certs/
+    ├── cert.pem
+    └── key.pem
+```
+
+## 2. Prerequisites
+
+- JDK 17 or later
+- Docker and Docker Compose
+- Kotlin 1.9.0 or later
+- Gradle 8.4 or later
+- OpenSSL (for certificate generation)
+- FFmpeg (for media processing)
+
+## 3. Setup Procedure
+
+### 3.1. Initial Setup
+
+```bash
+# Clone the repository
+git clone https://github.com/your-org/protocol-router.git
+cd protocol-router
+
+# Generate certificates
+./scripts/generate-certs.sh
+
+# Build the project
+./gradlew build
+
+# Build Docker images
+docker-compose build
+```
+
+### 3.2. Configuration
+
+1. Create environment file:
+```bash
+cp .env.example .env
+```
+
+2. Configure environment variables:
+```env
+KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+REDIS_HOST=redis
+TURN_USERNAME=admin
+TURN_PASSWORD=your_secure_password
+```
+
+3. Configure SSL certificates:
+```bash
+# Generate self-signed certificates for development
+./scripts/generate-certs.sh development
+
+# For production, place your certificates in:
+cp your-cert.pem certs/cert.pem
+cp your-key.pem certs/key.pem
+```
+
+## 4. Running the Application
+
+### 4.1. Development Environment
+
+```bash
+# Start dependencies
+docker-compose up -d kafka redis mongodb mosquitto
+
+# Run the application
+./gradlew bootRun
+```
+
+### 4.2. Production Environment
+
+```bash
+# Start all services
+docker-compose up -d
+
+# Check logs
+docker-compose logs -f router
+
+# Check health
+curl http://localhost:8080/health
+```
+
+## 5. Testing
+
+### 5.1. Running Tests
+
+```bash
+# Unit tests
+./gradlew test
+
+# Integration tests
+./gradlew integrationTest
+
+# Performance tests
+./gradlew performanceTest
+```
+
+### 5.2. Protocol Testing
+
+#### HTTP/WebSocket
+```bash
+# Test HTTP endpoint
+curl -X POST http://localhost:8080/api/message \
+  -H "Content-Type: application/json" \
+  -d '{"data": "test"}'
+
+# Test WebSocket
+wscat -c wss://localhost:8443/ws
+```
+
+#### RTSP/HLS
+```bash
+# Stream RTSP
+ffmpeg -i test.mp4 -f rtsp rtsp://localhost:554/stream
+
+# Play HLS
+vlc http://localhost:8082/hls/stream.m3u8
+```
+
+#### gRPC
+```bash
+# Using grpcurl
+grpcurl -plaintext localhost:9000 list
+grpcurl -plaintext localhost:9000 RouterService/StreamData
+```
+
+### 5.3. Load Testing
+```bash
+# Run performance test suite
+./scripts/test/performance-test.sh
+
+# Monitor metrics
+open http://localhost:3000  # Grafana
+```
+
+## 6. Monitoring
+
+### 6.1. Available Dashboards
+
+- Grafana: http://localhost:3000
+   - System Metrics Dashboard
+   - Protocol Metrics Dashboard
+   - Streaming Performance Dashboard
+
+- Prometheus: http://localhost:9090
+- Jaeger: http://localhost:16686
+
+### 6.2. Health Checks
+
+```bash
+# Router health
+curl http://localhost:8080/health
+
+# Protocol-specific health
+curl http://localhost:8080/health/kafka
+curl http://localhost:8080/health/redis
+```
+
+## 7. Protocol Support
+
+### 7.1. Supported Protocols
+
+- Messaging:
+   - Kafka
+   - RabbitMQ
+   - MQTT
+   - Redis
+
+- Streaming:
+   - RTSP
+   - HLS
+   - DASH
+   - WebRTC
+
+- Web:
+   - HTTP/REST
+   - WebSocket (WSS)
+   - gRPC
+   - GraphQL
+
+- Storage:
+   - File
+   - FTP/SFTP
+   - S3
+
+### 7.2. Protocol Configuration
+
+Example route configuration:
+```yaml
+routes:
+  - from: "rtsp://camera:554/stream"
+    transform:
+      type: "transcode"
+      codec: "h264"
+    to: "webrtc://browser/stream"
+```
+
+## 8. Troubleshooting
+
+### 8.1. Common Issues
+
+1. Connection Issues:
+```bash
+# Check network
+docker network ls
+docker network inspect router-net
+
+# Check service logs
+docker-compose logs kafka
+```
+
+2. Performance Issues:
+```bash
+# Check metrics
+curl http://localhost:8080/metrics
+
+# Check resource usage
+docker stats
+```
+
+### 8.2. Logs
+
+```bash
+# Application logs
+docker-compose logs -f router
+
+# Protocol-specific logs
+docker-compose logs -f kafka
+docker-compose logs -f webrtc-signaling
+```
+
+## 9. Maintenance
+
+### 9.1. Backup
+
+```bash
+# Backup configurations
+./scripts/backup-config.sh
+
+# Backup data
+./scripts/backup-data.sh
+```
+
+### 9.2. Updates
+
+```bash
+# Update dependencies
+./gradlew dependencyUpdates
+
+# Update Docker images
+docker-compose pull
+
+# Apply updates
+docker-compose up -d
+```
+
+## 10. Security
+
+### 10.1. Certificate Management
+
+```bash
+# Rotate certificates
+./scripts/rotate-certs.sh
+
+# Check certificate expiration
+./scripts/check-certs.sh
+```
+
+### 10.2. Authentication
+
+Configure authentication in `config/security.yaml`:
+```yaml
+security:
+  jwt:
+    enabled: true
+    secret: ${JWT_SECRET}
+  ssl:
+    enabled: true
+    certPath: /certs/cert.pem
+```
+
+## 11. Development
+
+### 11.1. Adding New Protocols
+
+1. Create handler:
+```kotlin
+class NewProtocolHandler : ProtocolHandler {
+    override suspend fun startReceiving(uri: String, channel: Channel<ByteArray>) {
+        // Implementation
+    }
+
+    override suspend fun send(uri: String, message: ByteArray) {
+        // Implementation
+    }
+}
+```
+
+2. Register protocol:
+```kotlin
+protocolRegistry.registerHandler("new-protocol", NewProtocolHandler())
+```
+
+### 11.2. Building
+
+```bash
+# Build project
+./gradlew build
+
+# Build Docker image
+docker build -t protocol-router .
+```
+
+## 12. Contact and Support
+
+- GitHub Issues: [Project Issues](https://github.com/your-org/protocol-router/issues)
+- Documentation: [Project Wiki](https://github.com/your-org/protocol-router/wiki)
+- Support Email: support@example.com
+
+
+
+
+
+
+
 # Video Processing System Documentation
 
 ## Table of Contents

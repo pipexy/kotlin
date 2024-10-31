@@ -18,8 +18,17 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy service code
 COPY src/ .
 
-# Create log directory
+# Create necessary directories
 RUN mkdir -p /var/log/pipexy
+RUN mkdir -p /certs
+
+# Copy certificates
+COPY certs/decoder.pem /certs/
+COPY certs/ca.crt /certs/
+
+# Set proper permissions for certificates
+RUN chmod 600 /certs/decoder.pem \
+    && chmod 644 /certs/ca.crt
 
 EXPOSE ${DECODER_PORT}
 

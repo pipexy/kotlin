@@ -1,0 +1,29 @@
+server:
+  port: 8443
+  ssl:
+    cert: /certs/cert.pem
+    key: /certs/key.pem
+  compression: true
+  maxPayload: 65536
+
+authentication:
+  enabled: true
+  jwt:
+    secret: ${JWT_SECRET}
+    expiration: 86400
+
+redis:
+  url: redis://redis:6379
+  channel: wss-broadcast
+
+clusters:
+  enabled: true
+  heartbeat: 30000
+
+monitoring:
+  enabled: true
+  metrics:
+    - connections
+    - messages
+    - bytes
+    - errors

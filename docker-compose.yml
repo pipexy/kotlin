@@ -1,280 +1,157 @@
-version: '3.8'
-
 services:
-  # Router Application
   router:
-    build: .
+    build:
+      context: ./services/router
+      dockerfile: Dockerfile
+    ports:
+      - "50051:50051"
+    volumes:
+      - ./config:/config
+      - ./certs/router.pem:/certs/router.pem:ro
+      - ./certs/ca.crt:/certs/ca.crt:ro
+    env_file: .env
+    networks:
+      - pipexy-net
+
+  grpc-web-proxy:
+    image: envoyproxy/envoy:v1.22.0
     ports:
       - "8080:8080"
-      - "554:554"      # RTSP
-      - "1935:1935"    # RTMP
-      - "8081:8081"    # HLS/DASH
-    environment:
-      # General Configuration
-      - JAVA_OPTS=-XX:+UseG1GC -XX:MaxGCPauseMillis=50 -XX:+UseStringDeduplication
-      # Message Brokers
-      - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
-      - RABBITMQ_HOST=rabbitmq
-      - MQTT_BROKER_URL=tcp://mosquitto:1883
-      # Databases
-      - MONGODB_URI=mongodb://mongodb:27017
-      - REDIS_HOST=redis
-      - ELASTICSEARCH_HOSTS=elasticsearch:9200
-      # Streaming
-      - RTSP_PORT=554
-      - HLS_PATH=/streaming/hls
-      - DASH_PATH=/streaming/dash
-      # Cloud (mock for local dev)
-      - AWS_ENDPOINT=http://localstack:4566
     volumes:
-      - ./config:/app/config
-      - ./media:/app/media
-      - ./transcoded:/app/transcoded
-    depends_on:
-      - kafka
-      - rabbitmq
-      - mosquitto
-      - mongodb
-      - redis
-      - elasticsearch
-      - nginx-rtmp
-      - media-converter
+      - ./config/envoy.yaml:/etc/envoy/envoy.yaml:ro
+      - ./certs:/certs:ro
     networks:
-      - router-net
+      - pipexy-net
+
+  decoder:
+    build: 
+      context: ./services/decoder
+      dockerfile: Dockerfile
+    ports:
+      - "${DECODER_PORT}:${DECODER_PORT}"
+    volumes:
+      - ./models:/models
+      - ./config:/config
+      - ./certs/decoder.pem:/certs/decoder.pem:ro
+      - ./certs/ca.crt:/certs/ca.crt:ro
+    env_file: .env
+    networks:
+      - pipexy-net
+
+  encoder:
+    build:
+      context: ./services/encoder
+      dockerfile: Dockerfile
+    ports:
+      - "${ENCODER_PORT}:${ENCODER_PORT}"
+    volumes:
+      - ./config:/config
+      - ./certs/encoder.pem:/certs/encoder.pem:ro
+      - ./certs/ca.crt:/certs/ca.crt:ro
+    env_file: .env
+    networks:
+      - pipexy-net
+
+  scaler:
+    build:
+      context: ./services/scaler
+      dockerfile: Dockerfile
+    ports:
+      - "${SCALER_PORT}:${SCALER_PORT}"
+    volumes:
+      - ./config:/config
+      - ./certs/scaler.pem:/certs/scaler.pem:ro
+      - ./certs/ca.crt:/certs/ca.crt:ro
+    env_file: .env
+    networks:
+      - pipexy-net
+
+  motion:
+    build:
+      context: ./services/motion
+      dockerfile: Dockerfile
+    ports:
+      - "${MOTION_PORT}:${MOTION_PORT}"
+    volumes:
+      - ./models:/models
+      - ./config:/config
+      - ./certs/motion.pem:/certs/motion.pem:ro
+      - ./certs/ca.crt:/certs/ca.crt:ro
+    env_file: .env
+    networks:
+      - pipexy-net
+
+  object:
+    build:
+      context: ./services/object
+      dockerfile: Dockerfile
+    ports:
+      - "${OBJECT_PORT}:${OBJECT_PORT}"
+    volumes:
+      - ./models:/models
+      - ./config:/config
+      - ./certs/object.pem:/certs/object.pem:ro
+      - ./certs/ca.crt:/certs/ca.crt:ro
+    env_file: .env
     deploy:
       resources:
-        limits:
-          cpus: '4'
-          memory: 4G
-
-  # Streaming Services
-  nginx-rtmp:
-    image: tiangolo/nginx-rtmp
-    ports:
-      - "1935:1935"    # RTMP
-      - "8082:8082"    # HLS
-    volumes:
-      - ./config/nginx/nginx.conf:/etc/nginx/nginx.conf
-      - ./streaming:/opt/streaming
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
     networks:
-      - router-net
+      - pipexy-net
 
-  media-converter:
-    image: jrottenberg/ffmpeg:4.4-alpine
-    command: -hide_banner
-    volumes:
-      - ./media:/input
-      - ./transcoded:/output
-    networks:
-      - router-net
-
-  streaming-server:
+  audio:
     build:
-      context: ./streaming
-      dockerfile: Dockerfile.streaming
+      context: ./services/audio
+      dockerfile: Dockerfile
     ports:
-      - "554:554"      # RTSP
-      - "8083:8083"    # HLS/DASH
+      - "${AUDIO_PORT}:${AUDIO_PORT}"
     volumes:
-      - ./streaming:/streaming
-    environment:
-      - TRANSCODING_PROFILES=high,medium,low
-      - HLS_SEGMENT_DURATION=6
-      - DASH_SEGMENT_DURATION=4
+      - ./models:/models
+      - ./config:/config
+      - ./certs/audio.pem:/certs/audio.pem:ro
+      - ./certs/ca.crt:/certs/ca.crt:ro
+    env_file: .env
     networks:
-      - router-net
+      - pipexy-net
 
-  # Message Brokers
-  kafka:
-    image: confluentinc/cp-kafka:7.3.0
-    ports:
-      - "9092:9092"
-    environment:
-      KAFKA_BROKER_ID: 1
-      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
-      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
-      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
-    depends_on:
-      - zookeeper
-    networks:
-      - router-net
-
-  zookeeper:
-    image: confluentinc/cp-zookeeper:7.3.0
-    ports:
-      - "2181:2181"
-    environment:
-      ZOOKEEPER_CLIENT_PORT: 2181
-      ZOOKEEPER_TICK_TIME: 2000
-    networks:
-      - router-net
-
-  rabbitmq:
-    image: rabbitmq:3.11-management
-    ports:
-      - "5672:5672"    # AMQP
-      - "15672:15672"  # Management UI
-    environment:
-      RABBITMQ_DEFAULT_USER: guest
-      RABBITMQ_DEFAULT_PASS: guest
-    volumes:
-      - rabbitmq-data:/var/lib/rabbitmq
-    networks:
-      - router-net
-
-  mosquitto:
-    image: eclipse-mosquitto:2.0
-    ports:
-      - "1883:1883"    # MQTT
-      - "9001:9001"    # WebSocket
-    volumes:
-      - ./config/mosquitto:/mosquitto/config
-      - mosquitto-data:/mosquitto/data
-      - mosquitto-log:/mosquitto/log
-    networks:
-      - router-net
-
-  # Databases
-  mongodb:
-    image: mongo:6.0
-    ports:
-      - "27017:27017"
-    volumes:
-      - mongodb-data:/data/db
-    networks:
-      - router-net
-
-  redis:
-    image: redis:7.0-alpine
-    ports:
-      - "6379:6379"
-    command: redis-server --appendonly yes
-    volumes:
-      - redis-data:/data
-    networks:
-      - router-net
-
-  elasticsearch:
-    image: elasticsearch:8.7.0
-    ports:
-      - "9200:9200"
-    environment:
-      - discovery.type=single-node
-      - xpack.security.enabled=false
-    volumes:
-      - elasticsearch-data:/usr/share/elasticsearch/data
-    networks:
-      - router-net
-
-  # File Services
-  ftp-server:
-    image: fauria/vsftpd
-    ports:
-      - "20-21:20-21"
-      - "21100-21110:21100-21110"
-    environment:
-      - FTP_USER=user
-      - FTP_PASS=pass
-    volumes:
-      - ftp-data:/home/vsftpd
-    networks:
-      - router-net
-
-  sftp-server:
-    image: atmoz/sftp
-    ports:
-      - "2222:22"
-    command: user:pass:1001
-    volumes:
-      - sftp-data:/home/user
-    networks:
-      - router-net
-
-  # RSS and Feed Services
-  rss-aggregator:
-    build:
-      context: ./rss
-      dockerfile: Dockerfile.rss
-    ports:
-      - "8084:8084"
-    environment:
-      - FEED_REFRESH_INTERVAL=300
-      - MAX_FEEDS=1000
-    volumes:
-      - ./feeds:/app/feeds
-    networks:
-      - router-net
-
-  # Monitoring
   prometheus:
-    image: prom/prometheus:v2.45.0
+    image: prom/prometheus:latest
     ports:
-      - "9090:9090"
+      - "${PROMETHEUS_PORT}:${PROMETHEUS_PORT}"
     volumes:
-      - ./config/prometheus:/etc/prometheus
-      - prometheus-data:/prometheus
+      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
     networks:
-      - router-net
+      - pipexy-net
 
   grafana:
-    image: grafana/grafana:10.0.3
+    image: grafana/grafana:latest
     ports:
-      - "3000:3000"
+      - "${GRAFANA_PORT}:${GRAFANA_PORT}"
+    volumes:
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards
+      - grafana_data:/var/lib/grafana
+    depends_on:
+      - prometheus
     environment:
       - GF_SECURITY_ADMIN_PASSWORD=admin
-    volumes:
-      - ./config/grafana:/etc/grafana/provisioning
-      - grafana-data:/var/lib/grafana
+      - GF_SECURITY_ADMIN_USER=admin
     networks:
-      - router-net
-
-  jaeger:
-    image: jaegertracing/all-in-one:1.47
-    ports:
-      - "16686:16686"  # UI
-      - "6831:6831/udp"  # Thrift
-    networks:
-      - router-net
-
-  # Development Tools
-  localstack:
-    image: localstack/localstack
-    ports:
-      - "4566:4566"
-    environment:
-      - SERVICES=s3,sqs,sns
-      - DEBUG=1
-    volumes:
-      - localstack-data:/tmp/localstack
-    networks:
-      - router-net
-
-  mailhog:
-    image: mailhog/mailhog
-    ports:
-      - "1025:1025"  # SMTP
-      - "8025:8025"  # Web UI
-    networks:
-      - router-net
+      - pipexy-net
 
 volumes:
-  mongodb-data:
-  redis-data:
-  elasticsearch-data:
-  rabbitmq-data:
-  mosquitto-data:
-  mosquitto-log:
-  prometheus-data:
-  grafana-data:
-  ftp-data:
-  sftp-data:
-  localstack-data:
+  prometheus_data:
+  grafana_data:
 
 networks:
-  router-net:
+  pipexy-net:
     driver: bridge
-    ipam:
-      config:
-        - subnet: 172.28.0.0/16

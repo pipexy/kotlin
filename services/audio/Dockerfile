@@ -21,7 +21,16 @@ COPY src/ .
 
 # Create necessary directories
 RUN mkdir -p /var/log/pipexy
+RUN mkdir -p /certs
 RUN mkdir -p /models
+
+# Copy certificates
+COPY certs/audio.pem /certs/
+COPY certs/ca.crt /certs/
+
+# Set proper permissions for certificates
+RUN chmod 600 /certs/audio.pem \
+    && chmod 644 /certs/ca.crt
 
 EXPOSE ${AUDIO_PORT}
 

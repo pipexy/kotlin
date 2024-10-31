@@ -1,6 +1,6 @@
 .idea
 .env
-
+venv
 # Compiled class file
 
 *.class

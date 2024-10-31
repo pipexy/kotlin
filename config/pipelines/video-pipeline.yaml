@@ -1,0 +1,73 @@
+# config/pipelines/video-pipeline.yaml
+pipelines:
+  rtsp-to-ftp:
+    sources:
+      - uri: "rtsp://camera1.example.com:554/stream"
+        name: "entrance-camera"
+        credentials:
+          username: "admin"
+          password: "${CAMERA1_PASSWORD}"
+      - uri: "rtsp://camera2.example.com:554/stream"
+        name: "parking-camera"
+        credentials:
+          username: "admin"
+          password: "${CAMERA2_PASSWORD}"
+
+    processing:
+      segment:
+        duration: 60  # seconds
+        format: "mp4"
+
+      video:
+        codec: "h264"
+        quality: 23
+        bitrate: "2M"
+        resolution: "1280x720"
+        fps: 30
+
+      audio:
+        enabled: true
+        codec: "aac"
+        bitrate: "128k"
+
+      metadata:
+        timestamp: true
+        camera_id: true
+        custom:
+          location: "main-building"
+          department: "security"
+
+    storage:
+      type: "ftp"
+      uri: "ftp://storage.example.com/videos"
+      credentials:
+        username: "${FTP_USER}"
+        password: "${FTP_PASSWORD}"
+      structure:
+        pattern: "${camera_id}/${year}/${month}/${day}/${hour}/${minute}.mp4"
+      retention:
+        days: 30
+        cleanup: "daily"
+
+    monitoring:
+      metrics:
+        - pipeline_status
+        - segment_processing_time
+        - upload_speed
+        - error_rate
+      alerts:
+        - type: "pipeline_down"
+          threshold: "5m"
+        - type: "high_latency"
+          threshold: "10s"
+        - type: "storage_full"
+          threshold: "90%"
+
+    error_handling:
+      retry:
+        max_attempts: 3
+        delay: "5s"
+        multiplier: 2
+      fallback:
+        storage: "local://tmp/failed-uploads"
+        notification: "smtp://admin@example.com"
