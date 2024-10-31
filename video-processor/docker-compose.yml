@@ -1,0 +1,116 @@
+version: '3.8'
+
+x-service-common: &service-common
+  restart: unless-stopped
+  logging:
+    driver: "json-file"
+    options:
+      max-size: "10m"
+      max-file: "3"
+  deploy:
+    resources:
+      limits:
+        memory: ${MAX_MEMORY_PER_SERVICE}
+    replicas: ${WORKERS_PER_SERVICE}
+  networks:
+    - processor-network
+
+services:
+  # Video Processing Services
+  decoder:
+    <<: *service-common
+    build:
+      context: ./services/decoder
+      dockerfile: Dockerfile
+      args:
+        - SERVICE_VERSION=${PROJECT_VERSION}
+    environment:
+      - GRPC_PORT=${DECODER_PORT}
+      - PIXEL_FORMAT=${VIDEO_PIXEL_FORMAT}
+      - NVIDIA_VISIBLE_DEVICES=${NVIDIA_VISIBLE_DEVICES}
+    ports:
+      - "${DECODER_PORT}:${DECODER_PORT}"
+    volumes:
+      - ./config:/app/config:ro
+    runtime: nvidia
+
+  encoder:
+    <<: *service-common
+    build:
+      context: ./services/encoder
+      dockerfile: Dockerfile
+    environment:
+      - GRPC_PORT=${ENCODER_PORT}
+      - DEFAULT_CODEC=${DEFAULT_CODEC}
+      - DEFAULT_PRESET=${DEFAULT_PRESET}
+    ports:
+      - "${ENCODER_PORT}:${ENCODER_PORT}"
+    runtime: nvidia
+
+  # AI Processing Services
+  motion-detector:
+    <<: *service-common
+    build:
+      context: ./services/motion
+      dockerfile: Dockerfile
+    environment:
+      - GRPC_PORT=${MOTION_PORT}
+    ports:
+      - "${MOTION_PORT}:${MOTION_PORT}"
+
+  object-detector:
+    <<: *service-common
+    build:
+      context: ./services/object
+      dockerfile: Dockerfile
+    environment:
+      - GRPC_PORT=${OBJECT_PORT}
+      - MODEL_PATH=${YOLO_MODEL_PATH}
+      - CONFIG_PATH=${YOLO_CONFIG_PATH}
+    ports:
+      - "${OBJECT_PORT}:${OBJECT_PORT}"
+    volumes:
+      - ./models:/models:ro
+    runtime: nvidia
+
+  # Audio Processing Service
+  audio-processor:
+    <<: *service-common
+    build:
+      context: ./services/audio
+      dockerfile: Dockerfile
+    environment:
+      - GRPC_PORT=${AUDIO_PORT}
+    ports:
+      - "${AUDIO_PORT}:${AUDIO_PORT}"
+
+  # Monitoring Stack
+  prometheus:
+    image: prom/prometheus:latest
+    volumes:
+      - ./monitoring/prometheus:/etc/prometheus
+      - prometheus_data:/prometheus
+    ports:
+      - "${PROMETHEUS_PORT}:${PROMETHEUS_PORT}"
+    networks:
+      - processor-network
+
+  grafana:
+    image: grafana/grafana:latest
+    volumes:
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards
+      - grafana_data:/var/lib/grafana
+    ports:
+      - "${GRAFANA_PORT}:${GRAFANA_PORT}"
+    networks:
+      - processor-network
+    depends_on:
+      - prometheus
+
+networks:
+  processor-network:
+    driver: bridge
+
+volumes:
+  prometheus_data:
+  grafana_data:

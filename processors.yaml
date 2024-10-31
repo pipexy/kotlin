@@ -1,0 +1,234 @@
+# routes.yaml
+version: "1.0"
+
+global:
+  workers: 4
+  buffer_size: 1024
+  retry_interval: 5000
+  monitoring:
+    enabled: true
+    metrics_port: 9090
+
+# Define available protocols and their default settings
+protocols:
+  rtsp:
+    reconnect_timeout: 5000
+    tcp_mode: true
+    buffer_size: 512kb
+  webrtc:
+    ice_servers:
+      - stun:stun.l.google.com:19302
+    signaling_url: "ws://localhost:8444"
+  srt:
+    latency: 200
+    bandwidth: 8000
+  rist:
+    buffer_size: 1000
+    rtt: 100
+  ndi:
+    discovery_server: "239.255.0.1"
+    groups: ["cameras", "studio"]
+
+# Processing modules configuration
+modules:
+  motion:
+    sensitivity_levels:
+      low: 0.15
+      medium: 0.25
+      high: 0.35
+  object_detection:
+    models:
+      yolov4-tiny:
+        path: "/models/yolov4-tiny.weights"
+        config: "/models/yolov4-tiny.cfg"
+      ssd-mobilenet:
+        path: "/models/ssd_mobilenet.pb"
+  face_detection:
+    model: "/models/face_detection.xml"
+    scale_factor: 1.1
+  audio:
+    normalizers:
+      - type: "loudness"
+        target: -23
+      - type: "peak"
+        limit: -1.0
+
+# Pipeline definitions
+pipelines:
+  # Example 1: Studio Camera with Multiple Outputs
+  - name: "studio-main"
+    from:
+      protocol: "ndi"
+      source: "Studio-Cam-1"
+      group: "studio"
+    processors:
+      - type: "video"
+        deinterlace: true
+        denoise: true
+    to:
+      - url: "hls://cdn.local/studio/high.m3u8"
+        transform:
+          resolution: "1920x1080"
+          fps: 30
+          codec: "h264"
+          preset: "veryfast"
+          profile: "high"
+          bitrate: "4000k"
+          audio:
+            codec: "aac"
+            bitrate: "128k"
+            channels: 2
+      - url: "rtmp://live.local/studio"
+        transform:
+          resolution: "1280x720"
+          bitrate: "2500k"
+      - url: "srt://backup.local:9000"
+        transform:
+          latency: 200
+
+  # Example 2: Security Camera with Motion Detection
+  - name: "security-gate"
+    from: "rtsp://camera2.local:554/security"
+    processors:
+      - type: "motion"
+        sensitivity: "high"
+        regions:
+          - name: "gate"
+            coordinates: [100, 100, 500, 400]
+          - name: "parking"
+            coordinates: [600, 200, 1000, 800]
+      - type: "object_detection"
+        model: "yolov4-tiny"
+        classes: ["person", "car", "truck"]
+        confidence: 0.6
+    to:
+      - url: "hls://security.local/gate.m3u8"
+        options:
+          segment_duration: 2
+          encryption: true
+          key_url: "https://keys.local/gate.key"
+      - url: "webrtc://monitor.local/security"
+        when: "motion_detected"
+
+  # Example 3: Video Conference Bridge
+  - name: "conference-room"
+    from: "webrtc://conference.local/room1"
+    processors:
+      - type: "audio"
+        normalizers: ["loudness", "peak"]
+        noise_reduction: true
+      - type: "video"
+        background_blur: true
+    to:
+      - url: "rtmp://stream.local/conference"
+      - url: "rist://backup.local:9001"
+        transform:
+          rtt: 100
+          buffer: 200
+
+  # Example 4: Sports Event with Instant Replay
+  - name: "sports-main"
+    from: "srt://camera.local:9000"
+    processors:
+      - type: "video"
+        deinterlace: true
+        stabilization: true
+    to:
+      - url: "hls://sports.local/main.m3u8"
+        transform:
+          resolution: "3840x2160"
+          fps: 60
+          codec: "h265"
+          bitrate: "18000k"
+      - url: "ndi://replay-system"
+        options:
+          group: "production"
+          buffer_length: "30s"
+
+  # Example 5: AI-Enhanced Surveillance
+  - name: "smart-surveillance"
+    from:
+      - url: "rtsp://cam1.local/main"
+        name: "entrance"
+      - url: "rtsp://cam2.local/main"
+        name: "parking"
+    processors:
+      - type: "object_detection"
+        model: "ssd-mobilenet"
+        classes: ["person", "vehicle"]
+        tracking: true
+      - type: "face_detection"
+        enabled: true
+        save_faces: true
+        min_size: [60, 60]
+    to:
+      - url: "rist://monitor.local:9002"
+        transform:
+          encryption: true
+          key: "secret-key"
+      - url: "elasticsearch://analytics.local:9200"
+        options:
+          index: "surveillance"
+          batch_size: 100
+
+  # Example 6: Live Event Redundancy
+  - name: "live-event"
+    from:
+      - url: "srt://main-cam.local:9000"
+        priority: 1
+      - url: "srt://backup-cam.local:9000"
+        priority: 2
+    processors:
+      - type: "video"
+        deinterlace: true
+        logo:
+          path: "/graphics/logo.png"
+          position: "top-right"
+          opacity: 0.8
+    to:
+      - url: "rtmp://youtube/live/key"
+      - url: "rtmp://facebook/live/key"
+      - url: "hls://cdn.local/event.m3u8"
+        transform:
+          variants:
+            - name: "4k"
+              resolution: "3840x2160"
+              bitrate: "18000k"
+            - name: "1080p"
+              resolution: "1920x1080"
+              bitrate: "6000k"
+            - name: "720p"
+              resolution: "1280x720"
+              bitrate: "2500k"
+            - name: "480p"
+              resolution: "854x480"
+              bitrate: "1000k"
+
+alerts:
+  - name: "motion-alert"
+    condition: "motion_detected"
+    actions:
+      - type: "webhook"
+        url: "https://alerts.local/motion"
+      - type: "email"
+        to: "security@company.com"
+
+  - name: "quality-alert"
+    condition: "bitrate < 1000000 || fps < 25"
+    actions:
+      - type: "webhook"
+        url: "https://monitor.local/quality"
+      - type: "slack"
+        channel: "#stream-alerts"
+
+storage:
+  recordings:
+    path: "/storage/recordings"
+    retention: "7d"
+    format: "mp4"
+
+  snapshots:
+    path: "/storage/snapshots"
+    trigger: "object_detected"
+    format: "jpeg"
+    quality: 90

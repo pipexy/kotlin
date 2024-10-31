@@ -1,0 +1,63 @@
+syntax = "proto3";
+
+package pipexy.audio;
+
+import "common.proto";
+
+message AudioFrame {
+  bytes data = 1;
+  int32 sample_rate = 2;
+  int32 channels = 3;
+  string format = 4;
+  pipexy.common.Timestamp timestamp = 5;
+  int32 frame_number = 6;
+}
+
+message AudioStream {
+  string stream_id = 1;
+  int32 sample_rate = 2;
+  int32 channels = 3;
+  string format = 4;
+  int32 bitrate = 5;
+}
+
+message AudioProcessingConfig {
+  bool noise_reduction = 1;
+  float noise_reduction_strength = 2;
+  bool echo_cancellation = 3;
+  bool automatic_gain_control = 4;
+}
+
+message ProcessAudioRequest {
+  AudioFrame frame = 1;
+  AudioProcessingConfig config = 2;
+}
+
+message ProcessAudioResponse {
+  pipexy.common.Status status = 1;
+  AudioFrame processed_frame = 2;
+}
+
+message AudioFeatures {
+  float volume_level = 1;
+  float noise_level = 2;
+  repeated float frequency_spectrum = 3;
+  bool speech_detected = 4;
+  float speech_probability = 5;
+}
+
+message AnalyzeAudioRequest {
+  AudioFrame frame = 1;
+}
+
+message AnalyzeAudioResponse {
+  pipexy.common.Status status = 1;
+  AudioFeatures features = 2;
+}
+
+service AudioProcessingService {
+  rpc ProcessAudio(ProcessAudioRequest) returns (ProcessAudioResponse);
+  rpc ProcessAudioStream(stream ProcessAudioRequest) returns (stream ProcessAudioResponse);
+  rpc AnalyzeAudio(AnalyzeAudioRequest) returns (AnalyzeAudioResponse);
+  rpc AnalyzeAudioStream(stream AnalyzeAudioRequest) returns (stream AnalyzeAudioResponse);
+}

@@ -85,6 +85,36 @@ cp .env.example .env
 ./scripts/manage.sh start
 ```
 
+```bash
+# Version Information
+# Python >= 3.9
+# CUDA >= 11.0 (if using GPU)
+# FFmpeg >= 4.4
+
+# Platform-specific dependencies
+# Linux: libgl1-mesa-glx, libglib2.0-0
+# Windows: Visual C++ Redistributable
+# macOS: brew install ffmpeg
+
+# Install with:
+# pip install -r requirements.txt
+
+# For development:
+# pip install -r requirements.txt[dev]
+
+# For testing:
+# pip install -r requirements.txt[test]
+
+# Optional GPU support:
+# pip install -r requirements.txt[gpu]
+
+# Create environment with:
+python -m venv venv
+source venv/bin/activate  # Linux/macOS
+venv\Scripts\activate     # Windows
+pip install -r requirements.txt
+```
+
 ### Docker Deployment
 ```bash
 # Build images

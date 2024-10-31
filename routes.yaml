@@ -1,0 +1,58 @@
+# routes.yaml
+version: "1.0"
+
+settings:
+  workers: 4
+  buffer_size: 1024
+  retry_interval: 5000
+
+pipelines:
+  # Simple RTSP to HLS conversions
+  - name: "skate-stream"
+    from: "rtsp://camera1.local:554/stream1"
+    to: "hls://localhost/skate_phantom_flex_4k.m3u8"
+    options:
+      segment_duration: 4
+      playlist_size: 5
+
+  - name: "hd-stream"
+    from: "rtsp://camera1.local:554/stream2"
+    to: "hls://localhost/hd.m3u8"
+    options:
+      segment_duration: 6
+      playlist_size: 3
+
+  # WebRTC to RTMP conversion
+  - name: "webrtc-live"
+    from: "webrtc://signaling:8444/stream"
+    to: "rtmp://streaming:1935/live"
+    transform:
+      codec: "h264"
+      preset: "veryfast"
+      bitrate: "2500k"
+
+  # RTSP with motion detection to HLS
+  - name: "security-cam"
+    from: "rtsp://camera2.local:554/security"
+    processors:
+      - type: "motion"
+        sensitivity: 0.25
+        region: [0, 0, 1920, 1080]
+    to: "hls://localhost/security.m3u8"
+
+  # Multiple outputs from single input
+  - name: "multi-quality"
+    from: "rtsp://camera3.local:554/main"
+    to:
+      - url: "hls://localhost/high.m3u8"
+        transform:
+          resolution: "1920x1080"
+          bitrate: "4000k"
+      - url: "hls://localhost/medium.m3u8"
+        transform:
+          resolution: "1280x720"
+          bitrate: "2500k"
+      - url: "hls://localhost/low.m3u8"
+        transform:
+          resolution: "854x480"
+          bitrate: "1000k"

@@ -1,0 +1,55 @@
+decoder:
+  input_formats:
+    - h264
+    - h265
+    - vp8
+    - vp9
+  output_format: raw
+  buffer_size: 1024
+  threads: 4
+
+encoder:
+  input_format: raw
+  output_formats:
+    - h264
+    - h265
+  preset: medium
+  crf: 23
+  threads: 4
+
+scaler:
+  algorithms:
+    - bilinear
+    - bicubic
+    - lanczos
+  default_algorithm: bilinear
+  supported_resolutions:
+    - 1920x1080
+    - 1280x720
+    - 854x480
+    - 640x360
+
+motion:
+  detection:
+    sensitivity: 0.3
+    min_area: 500
+    history: 50
+  tracking:
+    max_disappeared: 30
+    min_distance: 50
+
+object:
+  model: yolov4-tiny
+  confidence_threshold: 0.5
+  nms_threshold: 0.4
+  input_size: 416
+  batch_size: 1
+
+audio:
+  sample_rate: 44100
+  channels: 2
+  format: pcm
+  chunk_size: 1024
+  noise_reduction:
+    enabled: true
+    strength: 0.3

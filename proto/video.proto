@@ -1,0 +1,68 @@
+syntax = "proto3";
+
+package pipexy.video;
+
+import "common.proto";
+
+message VideoFrame {
+  bytes data = 1;
+  pipexy.common.Resolution resolution = 2;
+  string format = 3;
+  pipexy.common.Timestamp timestamp = 4;
+  int32 frame_number = 5;
+}
+
+message VideoStream {
+  string stream_id = 1;
+  string format = 2;
+  pipexy.common.Resolution resolution = 3;
+  float fps = 4;
+  int32 bitrate = 5;
+}
+
+message DecodeRequest {
+  VideoStream stream = 1;
+  bytes encoded_data = 2;
+}
+
+message DecodeResponse {
+  pipexy.common.Status status = 1;
+  VideoFrame frame = 2;
+}
+
+message EncodeRequest {
+  VideoFrame frame = 1;
+  string target_format = 2;
+  int32 target_bitrate = 3;
+}
+
+message EncodeResponse {
+  pipexy.common.Status status = 1;
+  bytes encoded_data = 2;
+}
+
+message ScaleRequest {
+  VideoFrame frame = 1;
+  pipexy.common.Resolution target_resolution = 2;
+  string scaling_algorithm = 3;
+}
+
+message ScaleResponse {
+  pipexy.common.Status status = 1;
+  VideoFrame frame = 2;
+}
+
+service DecoderService {
+  rpc Decode(DecodeRequest) returns (DecodeResponse);
+  rpc DecodeStream(stream DecodeRequest) returns (stream DecodeResponse);
+}
+
+service EncoderService {
+  rpc Encode(EncodeRequest) returns (EncodeResponse);
+  rpc EncodeStream(stream EncodeRequest) returns (stream EncodeResponse);
+}
+
+service ScalerService {
+  rpc Scale(ScaleRequest) returns (ScaleResponse);
+  rpc ScaleStream(stream ScaleRequest) returns (stream ScaleResponse);
+}
